@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eden Model Filter Page</title>
+    <title>Eden Model Gallery</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .item-card {
+        .model-img {
             transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
         }
-        .item-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        .model-img:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
         }
-        .modal-backdrop {
-            backdrop-filter: blur(4px);
+        .category-section {
+            scroll-margin-top: 100px;
         }
     </style>
 </head>
@@ -22,35 +22,35 @@
     <div class="container mx-auto px-4 py-8">
         <!-- Header -->
         <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">Eden Model Filter</h1>
-            <p class="text-gray-600">Browse and filter game models</p>
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Eden Model Gallery</h1>
+            <p class="text-gray-600">Browse all game models by category</p>
         </header>
 
         <!-- Search Section -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8 sticky top-4 z-10">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div class="flex-1 max-w-md">
-                    <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search by model number or item name</label>
+                    <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search by filename</label>
                     <input type="text" id="search" placeholder="Search models..." 
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                 </div>
                 
                 <!-- Results Count -->
                 <div class="text-sm text-gray-600">
-                    Showing <span id="resultsCount">0</span> models
+                    Showing <span id="resultsCount">0</span> models across <span id="categoryCount">0</span> categories
                 </div>
             </div>
         </div>
 
-        <!-- Items Grid -->
-        <div id="itemsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <!-- Items will be populated here -->
+        <!-- Gallery Content -->
+        <div id="galleryContent">
+            <!-- Categories will be populated here -->
         </div>
 
         <!-- Loading State -->
         <div id="loading" class="text-center py-12">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p class="mt-2 text-gray-600">Loading models...</p>
+            <p class="mt-2 text-gray-600">Loading gallery...</p>
         </div>
 
         <!-- No Results -->
@@ -61,164 +61,176 @@
         </div>
     </div>
 
-    <!-- Modal -->
-    <div id="itemModal" class="hidden fixed inset-0 bg-black bg-opacity-50 modal-backdrop z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div class="p-6">
-                <div class="flex justify-between items-start mb-4">
-                    <h2 id="modalTitle" class="text-2xl font-bold text-gray-800"></h2>
-                    <button id="closeModal" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-                </div>
-                <div id="modalContent">
-                    <!-- Modal content will be populated here -->
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script>
-        class ModelFilter {
+        class ModelGallery {
             constructor() {
-                this.models = [];
-                this.filteredModels = [];
+                this.categories = [];
+                this.filteredCategories = [];
                 this.init();
             }
 
             async init() {
-                await this.loadModels();
+                await this.loadGallery();
                 this.setupEventListeners();
                 this.applyFilters();
             }
 
-            async loadModels() {
+            async loadGallery() {
                 try {
-                    const response = await fetch('items.json');
-                    this.models = await response.json();
+                    const response = await fetch('model_gallery.json');
+                    this.categories = await response.json();
                     document.getElementById('loading').classList.add('hidden');
                 } catch (error) {
-                    console.error('Error loading models:', error);
-                    document.getElementById('loading').innerHTML = '<p class="text-red-600">Error loading models. Please check that items.json exists.</p>';
+                    console.error('Error loading gallery:', error);
+                    document.getElementById('loading').innerHTML = '<p class="text-red-600">Error loading gallery. Please check that model_gallery.json exists.</p>';
                 }
             }
 
             setupEventListeners() {
                 // Search input with real-time filtering
                 document.getElementById('search').addEventListener('input', () => this.applyFilters());
-
-                // Modal events
-                document.getElementById('closeModal').addEventListener('click', () => this.closeModal());
-                document.getElementById('itemModal').addEventListener('click', (e) => {
-                    if (e.target === document.getElementById('itemModal')) {
-                        this.closeModal();
-                    }
-                });
             }
 
             applyFilters() {
                 const search = document.getElementById('search').value.toLowerCase().trim();
 
-                this.filteredModels = this.models.filter(model => {
-                    if (!search) return true;
+                if (!search) {
+                    // Show all categories and models
+                    this.filteredCategories = this.categories.map(category => ({
+                        ...category,
+                        filteredModels: category.models
+                    }));
+                } else {
+                    // Filter models within each category
+                    this.filteredCategories = this.categories.map(category => {
+                        const filteredModels = category.models.filter(model => 
+                            model.toLowerCase().includes(search)
+                        );
+                        return {
+                            ...category,
+                            filteredModels: filteredModels
+                        };
+                    }).filter(category => category.filteredModels.length > 0);
+                }
 
-                    // Check if search matches model number (convert to string for partial matching)
-                    const modelNumber = model.model.toString().toLowerCase();
-                    const matchesModelNumber = modelNumber.includes(search);
-
-                    // Check if search matches any source name
-                    const matchesSourceName = model.sources.some(source => 
-                        source.toLowerCase().includes(search)
-                    );
-
-                    return matchesModelNumber || matchesSourceName;
-                });
-
-                this.renderModels();
+                this.renderGallery();
                 this.updateResultsCount();
             }
 
-            renderModels() {
-                const grid = document.getElementById('itemsGrid');
+            renderGallery() {
+                const content = document.getElementById('galleryContent');
                 const noResults = document.getElementById('noResults');
 
-                if (this.filteredModels.length === 0) {
-                    grid.innerHTML = '';
+                if (this.filteredCategories.length === 0) {
+                    content.innerHTML = '';
                     noResults.classList.remove('hidden');
                     return;
                 }
 
                 noResults.classList.add('hidden');
-                grid.innerHTML = this.filteredModels.map(model => this.createModelCard(model)).join('');
+                content.innerHTML = this.filteredCategories.map(category => this.createCategorySection(category)).join('');
             }
 
-            createModelCard(model) {
-                return `
-                    <div class="bg-white rounded-lg shadow-md overflow-hidden item-card cursor-pointer" onclick="modelFilter.openModal(${model.model})">
-                        <div class="aspect-w-16 aspect-h-9 bg-gray-200">
-                            <img src="${model.img}" alt="Model ${model.model}" class="w-full h-48 object-cover" loading="lazy" 
-                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y3ZjdmNyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE2IiBmaWxsPSIjYWFhIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'">
-                        </div>
-                        <div class="p-4">
-                            <h3 class="font-bold text-lg text-gray-800 mb-3">Model ${model.model}</h3>
-                            <div class="text-sm text-gray-700">
-                                <div class="font-medium text-gray-800 mb-2">Sources:</div>
-                                <div class="space-y-1">
-                                    ${model.sources.map(source => `<div class="bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">${source}</div>`).join('')}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            openModal(modelNumber) {
-                const model = this.models.find(m => m.model === modelNumber);
-                if (!model) return;
-
-                document.getElementById('modalTitle').textContent = `Model ${model.model}`;
-                document.getElementById('modalContent').innerHTML = `
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <img src="${model.img}" alt="Model ${model.model}" class="w-full rounded-lg" 
-                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2Y3ZjdmNyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjYWFhIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'">
-                        </div>
-                        <div class="space-y-4">
-                            <div>
-                                <h4 class="font-semibold text-gray-700 mb-2">Model Details</h4>
-                                <div class="bg-gray-50 p-3 rounded">
-                                    <div class="text-sm text-gray-600">Model Number</div>
-                                    <div class="text-lg font-bold text-gray-800">${model.model}</div>
-                                </div>
-                            </div>
-                            <div>
-                                <h4 class="font-semibold text-gray-700 mb-2">Available Sources</h4>
-                                <div class="space-y-2">
-                                    ${model.sources.map(source => `
-                                        <div class="bg-blue-50 border border-blue-200 rounded p-3">
-                                            <div class="font-medium text-blue-900">${source}</div>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
+            createCategorySection(category) {
+                const categoryName = category.category === '.' ? 'Root' : category.category;
+                const modelCount = category.filteredModels.length;
                 
-                document.getElementById('itemModal').classList.remove('hidden');
+                return `
+                    <div class="category-section mb-12">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-2xl font-bold text-gray-800">${categoryName}</h2>
+                            <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                                ${modelCount} model${modelCount !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                            ${category.filteredModels.map(model => this.createModelThumbnail(category.category, model)).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            createModelThumbnail(categoryPath, filename) {
+                const modelPath = categoryPath === '.' ? `models/${filename}` : `models/${categoryPath}/${filename}`;
+                const modelNumber = filename.replace('.jpg', '');
+                
+                return `
+                    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                        <div class="aspect-square bg-gray-200 relative">
+                            <img src="${modelPath}" 
+                                 alt="Model ${modelNumber}" 
+                                 class="w-full h-full object-cover model-img cursor-pointer" 
+                                 loading="lazy"
+                                 onclick="modelGallery.openImageModal('${modelPath}', '${modelNumber}')"
+                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y3ZjdmNyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiBmaWxsPSIjYWFhIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'">
+                        </div>
+                        <div class="p-2 text-center">
+                            <div class="text-xs font-medium text-gray-700">${modelNumber}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            openImageModal(imagePath, modelNumber) {
+                // Create modal if it doesn't exist
+                if (!document.getElementById('imageModal')) {
+                    const modal = document.createElement('div');
+                    modal.id = 'imageModal';
+                    modal.className = 'hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4';
+                    modal.innerHTML = `
+                        <div class="relative max-w-4xl max-h-full">
+                            <button id="closeImageModal" class="absolute top-4 right-4 text-white hover:text-gray-300 text-3xl z-10">&times;</button>
+                            <img id="modalImage" class="max-w-full max-h-full object-contain rounded-lg" alt="">
+                            <div id="modalTitle" class="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded"></div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+
+                    // Add event listeners
+                    document.getElementById('closeImageModal').addEventListener('click', () => this.closeImageModal());
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) {
+                            this.closeImageModal();
+                        }
+                    });
+                }
+
+                // Update modal content
+                document.getElementById('modalImage').src = imagePath;
+                document.getElementById('modalTitle').textContent = `Model ${modelNumber}`;
+                document.getElementById('imageModal').classList.remove('hidden');
                 document.body.style.overflow = 'hidden';
             }
 
-            closeModal() {
-                document.getElementById('itemModal').classList.add('hidden');
-                document.body.style.overflow = 'auto';
+            closeImageModal() {
+                const modal = document.getElementById('imageModal');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                }
             }
 
             updateResultsCount() {
-                document.getElementById('resultsCount').textContent = this.filteredModels.length;
+                const totalModels = this.filteredCategories.reduce((total, category) => 
+                    total + category.filteredModels.length, 0
+                );
+                const visibleCategories = this.filteredCategories.length;
+                
+                document.getElementById('resultsCount').textContent = totalModels;
+                document.getElementById('categoryCount').textContent = visibleCategories;
             }
         }
 
-        // Initialize the application
-        const modelFilter = new ModelFilter();
+        // Initialize the gallery
+        const modelGallery = new ModelGallery();
+
+        // Handle keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                modelGallery.closeImageModal();
+            }
+        });
     </script>
 </body>
 </html> 
